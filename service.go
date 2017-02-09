@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"sync"
 	"time"
 )
 
@@ -15,6 +16,8 @@ var ErrOperationFailed = errors.New("operation failed")
 
 // ErrMalformedData is returned when data is not proper
 var ErrMalformedData = errors.New("malformed data")
+
+var rwMutex sync.RWMutex
 
 // DataTestService provides card test data
 type DataTestService interface {
@@ -38,7 +41,9 @@ func (dataTestService) GetData(path string) (interface{}, error) {
 
 // GetAllData returns all data in the map
 func (dataTestService) GetAllData() (map[string]interface{}, error) {
-	return cardData, nil
+	rwMutex.Lock()
+	defer rwMutex.Unlock()
+	return globalData, nil
 }
 
 // PostData sets card data from to the map
@@ -47,13 +52,17 @@ func (dataTestService) PostData(path string, data interface{}) (interface{}, err
 	if err != nil {
 		return nil, err
 	}
-	cardData[path] = string(byteData)
+	rwMutex.Lock()
+	globalData[path] = string(byteData)
+	rwMutex.Unlock()
 	return getCardData(path)
 }
 
 // DeleteData deletes data from to the map
 func (dataTestService) DeleteData(path string) (interface{}, error) {
-	delete(cardData, path)
+	rwMutex.Lock()
+	delete(globalData, path)
+	rwMutex.Unlock()
 	_, err := getCardData(path)
 	if err != nil {
 		return nil, nil
@@ -62,7 +71,9 @@ func (dataTestService) DeleteData(path string) (interface{}, error) {
 }
 
 func getCardData(path string) (interface{}, error) {
-	data, mapOk := cardData[path]
+	rwMutex.Lock()
+	defer rwMutex.Unlock()
+	data, mapOk := globalData[path]
 	if !mapOk {
 		return nil, ErrPathNotFound
 	}

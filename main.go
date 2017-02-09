@@ -12,7 +12,7 @@ import (
 	"golang.org/x/net/context"
 )
 
-var cardData map[string]interface{}
+var globalData map[string]interface{}
 
 func main() {
 	var (
@@ -44,17 +44,17 @@ func main() {
 func readJSONData(logger log.Logger, filename string) {
 	file, fileErr := ioutil.ReadFile(filename)
 	if fileErr != nil {
-		logger.Log("File read error", fileErr.Error())
-		cardData = make(map[string]interface{})
+		logger.Log("filereaderror", fileErr.Error())
+		globalData = make(map[string]interface{})
 		return
 	}
 	var data map[string]interface{}
 	jsonErr := json.Unmarshal(file, &data)
 	if jsonErr != nil {
-		logger.Log("File format error", jsonErr.Error())
+		logger.Log("fileformaterror", jsonErr.Error())
 		os.Exit(1)
 	}
-	cardData = data
+	globalData = data
 
 }
 
