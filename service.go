@@ -19,9 +19,10 @@ var ErrMalformedData = errors.New("malformed data")
 // DataTestService provides card test data
 type DataTestService interface {
 	Status() (string, error)
-	GetData(string) (map[string]interface{}, error)
-	PostData(string, map[string]interface{}) (map[string]interface{}, error)
-	DeleteData(string) (map[string]interface{}, error)
+	GetData(string) (interface{}, error)
+	PostData(string, interface{}) (interface{}, error)
+	DeleteData(string) (interface{}, error)
+	GetAllData() (interface{}, error)
 }
 
 type dataTestService struct{}
@@ -31,12 +32,17 @@ func (dataTestService) Status() (string, error) {
 }
 
 // GetData returns card data from the map
-func (dataTestService) GetData(path string) (map[string]interface{}, error) {
+func (dataTestService) GetData(path string) (interface{}, error) {
 	return getCardData(path)
 }
 
+// GetAllData returns all data in the map
+func (dataTestService) GetAllData() (map[string]interface{}, error) {
+	return cardData, nil
+}
+
 // PostData sets card data from to the map
-func (dataTestService) PostData(path string, data map[string]interface{}) (map[string]interface{}, error) {
+func (dataTestService) PostData(path string, data interface{}) (interface{}, error) {
 	byteData, err := json.Marshal(data)
 	if err != nil {
 		return nil, err
@@ -46,7 +52,7 @@ func (dataTestService) PostData(path string, data map[string]interface{}) (map[s
 }
 
 // DeleteData deletes data from to the map
-func (dataTestService) DeleteData(path string) (map[string]interface{}, error) {
+func (dataTestService) DeleteData(path string) (interface{}, error) {
 	delete(cardData, path)
 	_, err := getCardData(path)
 	if err != nil {
@@ -55,15 +61,10 @@ func (dataTestService) DeleteData(path string) (map[string]interface{}, error) {
 	return nil, ErrOperationFailed
 }
 
-func getCardData(path string) (map[string]interface{}, error) {
+func getCardData(path string) (interface{}, error) {
 	data, mapOk := cardData[path]
-	arrData, jsonOk := data.(string)
-	if mapOk && jsonOk {
-		var jsonData map[string]interface{}
-		if err := json.Unmarshal([]byte(arrData), &jsonData); err != nil {
-			return nil, err
-		}
-		return jsonData, nil
+	if !mapOk {
+		return nil, ErrPathNotFound
 	}
-	return nil, ErrPathNotFound
+	return data, nil
 }

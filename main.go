@@ -3,37 +3,23 @@ package main
 import (
 	"encoding/json"
 	"flag"
-	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
-	"reflect"
 	"sync"
-	"time"
 
 	"github.com/go-kit/kit/log"
 	"golang.org/x/net/context"
 )
 
-var cardData = map[string]interface{}{}
+var cardData map[string]interface{}
 
 func main() {
-	str := json.RawMessage(`{"test": "hello123"}`)
-	j, _ := json.Marshal(&str)
-	cardData["test3"] = string(j)
 	var (
 		httpAddr     = flag.String("http.addr", ":8000", "Address for HTTP (JSON) server")
-		retryMax     = flag.Int("retry.max", 3, "per-request retries to different instances")
-		retryTimeout = flag.Duration("retry.timeout", 500*time.Millisecond, "per-request timeout, including retries")
+		dataFilename = flag.String("datafile", "data.json", "JSON file for the test data")
 	)
 	flag.Parse()
-
-	fmt.Println("Hello, World!")
-	fmt.Println(reflect.TypeOf(httpAddr))
-	fmt.Println(*httpAddr)
-	fmt.Println(reflect.TypeOf(retryMax))
-	fmt.Println(*retryMax)
-	fmt.Println(reflect.TypeOf(retryTimeout))
-	fmt.Println(*retryTimeout)
 
 	var logger log.Logger
 	logger = log.NewLogfmtLogger(os.Stderr)
@@ -41,6 +27,9 @@ func main() {
 	logger = log.NewContext(logger).With("ts", log.DefaultTimestampUTC)
 
 	httpLogger := log.NewContext(logger).With("component", "http")
+	fileIOLogger := log.NewContext(logger).With("component", "fileio")
+
+	readJSONData(fileIOLogger, *dataFilename)
 
 	ctx := context.Background()
 	svc := dataTestService{}
@@ -52,7 +41,30 @@ func main() {
 
 }
 
+func readJSONData(logger log.Logger, filename string) {
+	file, fileErr := ioutil.ReadFile(filename)
+	if fileErr != nil {
+		logger.Log("File read error", fileErr.Error())
+		cardData = make(map[string]interface{})
+		return
+	}
+	var data map[string]interface{}
+	jsonErr := json.Unmarshal(file, &data)
+	if jsonErr != nil {
+		logger.Log("File format error", jsonErr.Error())
+		os.Exit(1)
+	}
+	cardData = data
+
+}
+
 type serializedLogger struct {
 	mtx sync.Mutex
 	log.Logger
+}
+
+func (l *serializedLogger) Log(keyvals ...interface{}) error {
+	l.mtx.Lock()
+	defer l.mtx.Unlock()
+	return l.Logger.Log(keyvals...)
 }

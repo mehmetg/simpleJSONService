@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 
 	"github.com/go-kit/kit/endpoint"
@@ -18,13 +17,13 @@ type statusResponse struct {
 	Err  string `json:"err"`
 }
 type dataRequest struct {
-	Path string                 `json:"path,omitempty"`
-	Data map[string]interface{} `json:"data,omitempty"`
+	Path string      `json:"path,omitempty"`
+	Data interface{} `json:"data,omitempty"`
 }
 type dataResponse struct {
-	Path string                 `json:"path"`
-	Data map[string]interface{} `json:"data"`
-	Err  string                 `json:"err"`
+	Path string      `json:"path"`
+	Data interface{} `json:"data"`
+	Err  string      `json:"err"`
 }
 type setDataRequest struct {
 	Path string `json:"path"`
@@ -41,7 +40,7 @@ func makeStatusEndpoint(svc dataTestService) endpoint.Endpoint {
 	}
 }
 
-func makeGetCardDataEndpoint(svc dataTestService) endpoint.Endpoint {
+func makeGetDataEndpoint(svc dataTestService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(dataRequest)
 		data, err := svc.GetData(req.Path)
@@ -52,7 +51,17 @@ func makeGetCardDataEndpoint(svc dataTestService) endpoint.Endpoint {
 	}
 }
 
-func makePostCardDataEndpoint(svc dataTestService) endpoint.Endpoint {
+func makeAllDataEndpoint(svc dataTestService) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
+		data, err := svc.GetAllData()
+		if err != nil {
+			return dataResponse{Data: data, Err: err.Error()}, err
+		}
+		return dataResponse{Data: data, Err: ""}, nil
+	}
+}
+
+func makePostDataEndpoint(svc dataTestService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(dataRequest)
 		data, err := svc.PostData(req.Path, req.Data)
@@ -63,7 +72,7 @@ func makePostCardDataEndpoint(svc dataTestService) endpoint.Endpoint {
 	}
 }
 
-func makeDeleteCardDataEndpoint(svc dataTestService) endpoint.Endpoint {
+func makeDeleteDataEndpoint(svc dataTestService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
 		req := request.(dataRequest)
 		data, err := svc.DeleteData(req.Path)
@@ -84,30 +93,38 @@ func MakeHandler(ctx context.Context, svc dataTestService, logger kitlog.Logger)
 	statusHandler := kithttp.NewServer(
 		ctx,
 		makeStatusEndpoint(svc),
-		decodeStatusRequest,
+		decodeNoDataRequest,
 		encodeResponse,
 		opts...,
 	)
 
-	getCardDataHandler := kithttp.NewServer(
+	getDataHandler := kithttp.NewServer(
 		ctx,
-		makeGetCardDataEndpoint(svc),
+		makeGetDataEndpoint(svc),
 		decodeDataRequest,
 		encodeResponse,
 		opts...,
 	)
 
-	postCardDataHandler := kithttp.NewServer(
+	getAllDataHandler := kithttp.NewServer(
 		ctx,
-		makePostCardDataEndpoint(svc),
+		makeAllDataEndpoint(svc),
+		decodeNoDataRequest,
+		encodeResponse,
+		opts...,
+	)
+
+	postDataHandler := kithttp.NewServer(
+		ctx,
+		makePostDataEndpoint(svc),
 		decodeDataRequest,
 		encodeResponse,
 		opts...,
 	)
 
-	deleteCardDataHandler := kithttp.NewServer(
+	deleteDataHandler := kithttp.NewServer(
 		ctx,
-		makeDeleteCardDataEndpoint(svc),
+		makeDeleteDataEndpoint(svc),
 		decodeDataRequest,
 		encodeResponse,
 		opts...,
@@ -115,23 +132,15 @@ func MakeHandler(ctx context.Context, svc dataTestService, logger kitlog.Logger)
 
 	r := mux.NewRouter()
 
-	r.Handle("/data/{path}", getCardDataHandler).Methods("GET")
-	r.Handle("/data/{path}", postCardDataHandler).Methods("POST")
-	r.Handle("/data/{path}", deleteCardDataHandler).Methods("DELETE")
+	r.Handle("/all", getAllDataHandler).Methods("GET")
+	r.Handle("/data/{path}", getDataHandler).Methods("GET")
+	r.Handle("/data/{path}", postDataHandler).Methods("POST")
+	r.Handle("/data/{path}", deleteDataHandler).Methods("DELETE")
 	r.Handle("/status", statusHandler).Methods("GET")
-	r.Walk(func(route *mux.Route, router *mux.Router, ancestors []*mux.Route) error {
-		t, err := route.GetPathTemplate()
-		if err != nil {
-			return err
-		}
-		fmt.Println(t)
-		return nil
-	})
-
 	return r
 }
 
-func decodeStatusRequest(_ context.Context, r *http.Request) (interface{}, error) {
+func decodeNoDataRequest(_ context.Context, r *http.Request) (interface{}, error) {
 	return "", nil
 }
 
