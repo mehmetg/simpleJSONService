@@ -1,0 +1,9 @@
+{
+  "configurations": [{
+    "name": "Debug-GS",
+    "mode": "debug",
+    "args": ["-http.addr=127.0.0.1", "-retry.max=4",  "-retry.timeout=10ms"],
+    "env": { "MEH": "met" },
+    "showLog": true
+  }]
+}
