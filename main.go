@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"net/http"
 	"os"
@@ -36,6 +37,7 @@ func main() {
 	svc := dataTestService{}
 
 	http.Handle("/", MakeHandler(ctx, svc, httpLogger))
+	fmt.Printf("Starting service on \"%s\" with datafile \"%s\"\n", *httpAddr, *dataFilename)
 	errs := http.ListenAndServe(*httpAddr, nil)
 
 	logger.Log(errs)
