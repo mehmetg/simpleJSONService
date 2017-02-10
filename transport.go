@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"context"
+
 	"github.com/go-kit/kit/endpoint"
 	"github.com/gorilla/mux"
-	"golang.org/x/net/context"
 
 	kitlog "github.com/go-kit/kit/log"
 	kithttp "github.com/go-kit/kit/transport/http"
@@ -171,9 +172,9 @@ func encodeResponse(_ context.Context, w http.ResponseWriter, response interface
 }
 
 func encodeError(_ context.Context, err error, w http.ResponseWriter) {
-	kithttpError := err.(kithttp.Error)
+	//kithttpError := err.(kithttp.Error)
 
-	switch kithttpError.Err {
+	switch err {
 	case ErrPathNotFound:
 		w.WriteHeader(http.StatusNotFound)
 		break

@@ -8,8 +8,9 @@ import (
 	"os"
 	"sync"
 
+	"context"
+
 	"github.com/go-kit/kit/log"
-	"golang.org/x/net/context"
 )
 
 var globalData map[string]interface{}
