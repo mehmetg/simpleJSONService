@@ -133,7 +133,7 @@ func MakeHandler(ctx context.Context, svc dataTestService, logger kitlog.Logger)
 	statusHandler := kithttp.NewServer(
 		ctx,
 		makeStatusEndpoint(svc),
-		decodeRawDataRequest,
+		decodeStatusDataRequest,
 		encodeResponse,
 		opts...,
 	)
@@ -187,6 +187,10 @@ func MakeHandler(ctx context.Context, svc dataTestService, logger kitlog.Logger)
 	r.Handle("/data/{path}", deleteDataHandler).Methods("DELETE")
 	r.Handle("/status", statusHandler).Methods("GET")
 	return r
+}
+
+func decodeStatusDataRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	return nil, nil
 }
 
 func decodeRawDataRequest(_ context.Context, r *http.Request) (interface{}, error) {
