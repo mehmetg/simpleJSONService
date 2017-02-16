@@ -6,6 +6,7 @@ go clean
 rm -rf sjs-*-${GOARCH}
 # update deps
 go get -d -t -u -v
-# build linux
+echo "Building Linux"
 GOOS=${GOOS_LINUX} go build -o sjs-${GOOS_LINUX}-${GOARCH}
+echo "Building Darwin"
 GOOS=${GOOS_DARWIN} go build -o sjs-${GOOS_DARWIN}-${GOARCH}

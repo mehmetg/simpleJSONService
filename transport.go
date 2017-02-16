@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"strconv"
 
 	"context"
 
@@ -21,6 +23,11 @@ type dataRequest struct {
 	Path string      `json:"path,omitempty"`
 	Data interface{} `json:"data,omitempty"`
 }
+type pathResponse struct {
+	Cards        []interface{} `json:"cards"`
+	TotalCount   int           `json:"total_count"`
+	PerPageCount int           `json:"per_page_count"`
+}
 type dataResponse struct {
 	Path string      `json:"path"`
 	Data interface{} `json:"data"`
@@ -30,6 +37,13 @@ type setDataRequest struct {
 	Path string `json:"path"`
 	Data string `json:"data"`
 }
+
+type rawDataRequest struct {
+	Offset int
+	Limit  int
+}
+
+type pathRequest dataRequest
 
 func makeStatusEndpoint(svc dataTestService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
@@ -51,10 +65,35 @@ func makeGetDataEndpoint(svc dataTestService) endpoint.Endpoint {
 		return dataResponse{req.Path, data, ""}, nil
 	}
 }
+func makeGetPathEndpoint(svc dataTestService) endpoint.Endpoint {
+	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
+		req := request.(dataRequest)
+		data, err := svc.GetPath(req.Path)
+		if err != nil {
+			return pathResponse{make([]interface{}, 0), 0, 10}, nil
+		}
+		mapData := data.(map[string]interface{})
+		totalCount, tcOK := mapData["total_count"].(float64)
+		perPageCount, ppcOK := mapData["per_page_count"].(float64)
+		cardData, idsOK := mapData["cards"].([]interface{})
+		if !ppcOK || !tcOK || !idsOK {
+			fmt.Println("makeGetPathEndpoint error!!")
+			fmt.Println(tcOK)
+			fmt.Println(ppcOK)
+			fmt.Println(idsOK)
+			fmt.Println(mapData["cards"])
+			fmt.Println(mapData["total_count"])
+			fmt.Println(mapData["per_page_count"])
+			return pathResponse{make([]interface{}, 0), 0, 10}, nil
+		}
+		return pathResponse{cardData, int(totalCount), int(perPageCount)}, nil
+	}
+}
 
 func makeAllDataEndpoint(svc dataTestService) endpoint.Endpoint {
 	return func(ctx context.Context, request interface{}) (response interface{}, err error) {
-		data, err := svc.GetAllData()
+		req := request.(rawDataRequest)
+		data, err := svc.GetAllData(req.Offset, req.Limit)
 		if err != nil {
 			return dataResponse{Data: data, Err: err.Error()}, err
 		}
@@ -94,7 +133,7 @@ func MakeHandler(ctx context.Context, svc dataTestService, logger kitlog.Logger)
 	statusHandler := kithttp.NewServer(
 		ctx,
 		makeStatusEndpoint(svc),
-		decodeNoDataRequest,
+		decodeRawDataRequest,
 		encodeResponse,
 		opts...,
 	)
@@ -107,10 +146,18 @@ func MakeHandler(ctx context.Context, svc dataTestService, logger kitlog.Logger)
 		opts...,
 	)
 
+	getPathHandler := kithttp.NewServer(
+		ctx,
+		makeGetPathEndpoint(svc),
+		decodePathRequest,
+		encodeResponse,
+		opts...,
+	)
+
 	getAllDataHandler := kithttp.NewServer(
 		ctx,
 		makeAllDataEndpoint(svc),
-		decodeNoDataRequest,
+		decodeRawDataRequest,
 		encodeResponse,
 		opts...,
 	)
@@ -133,7 +180,8 @@ func MakeHandler(ctx context.Context, svc dataTestService, logger kitlog.Logger)
 
 	r := mux.NewRouter()
 
-	r.Handle("/all", getAllDataHandler).Methods("GET")
+	r.Handle("/all/{offset}/{limit}", getAllDataHandler).Methods("GET")
+	r.Handle("/ccapi/v1/cardData", getPathHandler).Methods("GET")
 	r.Handle("/data/{path}", getDataHandler).Methods("GET")
 	r.Handle("/data/{path}", postDataHandler).Methods("POST")
 	r.Handle("/data/{path}", deleteDataHandler).Methods("DELETE")
@@ -141,8 +189,24 @@ func MakeHandler(ctx context.Context, svc dataTestService, logger kitlog.Logger)
 	return r
 }
 
-func decodeNoDataRequest(_ context.Context, r *http.Request) (interface{}, error) {
-	return "", nil
+func decodeRawDataRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	var requestPayload rawDataRequest
+	vars := mux.Vars(r)
+	offset, _ := strconv.Atoi(vars["offset"])
+	limit, limitErr := strconv.Atoi(vars["limit"])
+	if limitErr != nil {
+		return nil, ErrMalformedData
+	}
+	requestPayload.Offset = offset
+	requestPayload.Limit = limit
+	return requestPayload, nil
+}
+
+func decodePathRequest(_ context.Context, r *http.Request) (interface{}, error) {
+	var requestPayload dataRequest
+	query := r.URL.RawQuery
+	requestPayload.Path = query
+	return requestPayload, nil
 }
 
 func decodeDataRequest(_ context.Context, r *http.Request) (interface{}, error) {
@@ -167,6 +231,7 @@ func decodeDataRequest(_ context.Context, r *http.Request) (interface{}, error) 
 }
 
 func encodeResponse(_ context.Context, w http.ResponseWriter, response interface{}) error {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	jsonEncoder := json.NewEncoder(w)
 	return jsonEncoder.Encode(response)
 }

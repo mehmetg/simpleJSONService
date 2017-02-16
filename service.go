@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -23,9 +24,10 @@ var rwMutex sync.RWMutex
 type DataTestService interface {
 	Status() (string, error)
 	GetData(string) (interface{}, error)
+	GetPath(string) (interface{}, error)
 	PostData(string, interface{}) (interface{}, error)
 	DeleteData(string) (interface{}, error)
-	GetAllData() (interface{}, error)
+	GetAllData(int, int) (interface{}, error)
 }
 
 type dataTestService struct{}
@@ -35,45 +37,89 @@ func (dataTestService) Status() (string, error) {
 }
 
 // GetData returns card data from the map
-func (dataTestService) GetData(path string) (interface{}, error) {
-	return getCardData(path)
+func (dataTestService) GetData(id string) (interface{}, error) {
+	return getCardData(id)
 }
 
-// GetAllData returns all data in the map
-func (dataTestService) GetAllData() (map[string]interface{}, error) {
+// GetPath returns card data array from the map by path
+func (dataTestService) GetPath(path string) (interface{}, error) {
 	rwMutex.Lock()
 	defer rwMutex.Unlock()
-	return globalData, nil
+	data, mapOk := globalData[path].(map[string]interface{})
+	if !mapOk {
+		fmt.Println("Path error")
+		return nil, ErrPathNotFound
+	}
+	cardIDs, idsOK := data["cards"].([]interface{})
+	if !idsOK {
+		fmt.Println("ID error")
+		return nil, ErrPathNotFound
+	}
+	allCards, allCardsOK := globalData["all_data"].(map[string]interface{})
+	if !allCardsOK {
+		fmt.Println(globalData["all_cards"])
+		fmt.Println("All cards error")
+		return nil, ErrPathNotFound
+	}
+	var cardData []interface{}
+	for _, cardID := range cardIDs {
+		strID := cardID.(string)
+		cardData = append(cardData, allCards[strID])
+	}
+	processedData := make(map[string]interface{})
+	processedData["per_page_count"] = data["per_page_count"]
+	processedData["total_count"] = data["total_count"]
+	processedData["cards"] = cardData
+	return processedData, nil
+}
+
+// GetAllData returns all data with offset and limit
+func (dataTestService) GetAllData(offset int, limit int) ([]interface{}, error) {
+	rwMutex.Lock()
+	defer rwMutex.Unlock()
+	var data []interface{}
+	rawData := globalData["all_data"].(map[string]interface{})
+	count := 0
+	for _, value := range rawData {
+		if count >= offset {
+			data = append(data, value)
+		}
+		if count >= offset+limit {
+			break
+		}
+		count++
+	}
+	return data, nil
 }
 
 // PostData sets card data from to the map
-func (dataTestService) PostData(path string, data interface{}) (interface{}, error) {
+func (dataTestService) PostData(id string, data interface{}) (interface{}, error) {
 	byteData, err := json.Marshal(data)
 	if err != nil {
 		return nil, err
 	}
 	rwMutex.Lock()
-	globalData[path] = string(byteData)
+	globalData["all_data"].(map[string]interface{})[id] = string(byteData)
 	rwMutex.Unlock()
-	return getCardData(path)
+	return getCardData(id)
 }
 
 // DeleteData deletes data from to the map
-func (dataTestService) DeleteData(path string) (interface{}, error) {
+func (dataTestService) DeleteData(id string) (interface{}, error) {
 	rwMutex.Lock()
-	delete(globalData, path)
+	delete(globalData["all_data"].(map[string]interface{}), id)
 	rwMutex.Unlock()
-	_, err := getCardData(path)
+	_, err := getCardData(id)
 	if err != nil {
 		return nil, nil
 	}
 	return nil, ErrOperationFailed
 }
 
-func getCardData(path string) (interface{}, error) {
+func getCardData(id string) (interface{}, error) {
 	rwMutex.Lock()
 	defer rwMutex.Unlock()
-	data, mapOk := globalData[path]
+	data, mapOk := globalData["all_data"].(map[string]interface{})[id]
 	if !mapOk {
 		return nil, ErrPathNotFound
 	}
