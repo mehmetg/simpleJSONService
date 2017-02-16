@@ -4,6 +4,7 @@ The service can be preloaded using a data.json file.
 
 # Usage
 * ```go get github.com/mehmetg/simpleJSONService```
-* ```go build```
-* ```./simpleJsonService -http.addr <host:port> -datafile <jsonfile>```
+From project root:
+* ```./build_all.sh```
+* ```./simpleJsonService -http.addr <host:port> -datafile <brotli compressed jsonfile>```
 
