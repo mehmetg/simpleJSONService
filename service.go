@@ -43,6 +43,7 @@ func (dataTestService) GetData(id string) (interface{}, error) {
 
 // GetPath returns card data array from the map by path
 func (dataTestService) GetPath(path string) (interface{}, error) {
+	fmt.Println(path)
 	rwMutex.Lock()
 	defer rwMutex.Unlock()
 	data, mapOk := globalData[path].(map[string]interface{})
